@@ -1,0 +1,105 @@
+---
+title: "Cross Understanding"
+author: "Roni Shen"
+date: "5/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(mediation)
+library(psych)
+library(tidyverse)
+library(kableExtra)
+library(jtools)
+library(ggpubr)
+library(papaja)
+library(corrr)
+library(apaTables)
+library(rstatix)
+library(sjPlot)
+library(stargazer)
+library(interactions)
+library(Hmisc)
+
+cu <- read_csv("CU_data.csv") %>% 
+  dplyr::select(MTPerf:Comm)
+```
+
+
+```{r}
+# using psych::describe()
+round(psych::describe(cu), 2) %>% 
+  kable()
+```
+
+
+
+# Correlation
+
+```{r}
+cu_cor <- cu %>% 
+  correlate() %>% 
+  shave(upper = TRUE) %>% 
+  fashion(decimals = 2, na_print = "--")
+
+apa_table(
+  cu_cor,
+  caption = "Correlation Table"
+)  
+
+rcorr(as.matrix(cu), type = "pearson")
+```
+
+# Regression
+
+```{r}
+mr1 <- lm(FINPerf ~ CU1, data = cu)
+
+mr2 <- lm(FINPerf ~ IC, data = cu)
+
+mr3 <- lm(FINPerf ~ CU1 + IC, data = cu)
+
+anova(mr1, mr2, mr3)
+
+tab_model(mr1, mr2, mr3, show.ci=F, show.std = T,
+          dv.labels = c("Cross Understanding", "Implicit Coordination", "Cross Understanding + Implicit Coord"))
+```
+
+
+
+# Mediation
+
+
+```{r, cache=TRUE}
+# X predicting Y (c path)
+fit_c <- lm(FINPerf ~ CU1, data = cu)
+summary(fit_c)
+# X predicting M (path a)
+fit_a <- lm(IC ~ CU1, data = cu)
+summary(fit_a)
+# M predicting Y (path b)
+fit_b <- lm(FINPerf ~ IC, data = cu)
+summary(fit_b)
+# X and M predicting Y (b and c')
+fit_cb <- lm(FINPerf ~ CU1 + IC, data = cu)
+summary(fit_cb)
+
+# Sim
+fit_med <- mediation::mediate(fit_a, fit_cb, 
+                              treat = "CU1",
+                              mediator = "IC",
+                              boot = TRUE,
+                              boot.ci.type = "perc",
+                              sims = 10000)
+
+summary(fit_med)
+
+tab_model(fit_a, fit_cb, show.std = TRUE, show.stat = TRUE, show.zeroinf = TRUE)
+```
+
+
